@@ -11,6 +11,9 @@ public class TakingTurnsQueue
 {
     private readonly PersonQueue _people = new();
 
+    // Track remaining turns
+    private readonly Dictionary<Person, int?> _remaining = new();
+
     public int Length => _people.Length;
 
     /// <summary>
@@ -22,6 +25,7 @@ public class TakingTurnsQueue
     {
         var person = new Person(name, turns);
         _people.Enqueue(person);
+        _remaining[person] = turns > 0 ? (int?)turns : null;
     }
 
     /// <summary>
@@ -37,17 +41,23 @@ public class TakingTurnsQueue
         {
             throw new InvalidOperationException("No one in the queue.");
         }
-        else
+        
+        Person person = _people.Dequeue();
+        if (person.Turns <= 0)
         {
-            Person person = _people.Dequeue();
-            if (person.Turns > 1)
-            {
-                person.Turns -= 1;
-                _people.Enqueue(person);
-            }
-
+            _people.Enqueue(person);
             return person;
         }
+
+        person.Turns--;
+
+        if (person.Turns > 0)
+        {
+            _people.Enqueue(person);
+        }
+
+        return person;
+        
     }
 
     public override string ToString()
