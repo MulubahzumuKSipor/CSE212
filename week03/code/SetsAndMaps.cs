@@ -1,4 +1,12 @@
 using System.Text.Json;
+using Microsoft.Win32;
+using System;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Text.Json.Serialization;
+using System.Threading.Tasks;
+
+
 
 public static class SetsAndMaps
 {
@@ -22,7 +30,24 @@ public static class SetsAndMaps
     public static string[] FindPairs(string[] words)
     {
         // TODO Problem 1 - ADD YOUR CODE HERE
-        return [];
+        var set = new HashSet<string>(words);
+        var result = new List<string>();
+
+        foreach (var w in set)
+        {
+            if (string.IsNullOrEmpty(w) || w.Length != 2) continue;
+
+            if (w[0] == w[1]) continue; // Skip words with identical letters
+            
+            var rev = new string(new[] { w[1], w[0] });
+
+            if (set.Contains(rev) && String.CompareOrdinal(w, rev) < 0)
+            {
+                result.Add($"{w} & {rev}");
+            }
+        }
+
+        return result.ToArray();
     }
 
     /// <summary>
@@ -36,13 +61,32 @@ public static class SetsAndMaps
     /// </summary>
     /// <param name="filename">The name of the file to read</param>
     /// <returns>fixed array of divisors</returns>
-    public static Dictionary<string, int> SummarizeDegrees(string filename)
+     public static Dictionary<string, int> SummarizeDegrees(string filename)
     {
-        var degrees = new Dictionary<string, int>();
+        var degrees = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var line in File.ReadLines(filename))
         {
-            var fields = line.Split(",");
-            // TODO Problem 2 - ADD YOUR CODE HERE
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            // Split by comma. If your CSV uses quotes with commas inside, a more robust parser is needed.
+            var fields = line.Split(',');
+
+            // Ensure there are enough columns
+            if (fields.Length < 4)
+                continue;
+
+            var degree = fields[3].Trim().Trim('"'); // remove whitespace and quotes
+
+            if (string.IsNullOrEmpty(degree))
+                continue;
+
+            // Increment count in dictionary
+            if (degrees.ContainsKey(degree))
+                degrees[degree]++;
+            else
+                degrees[degree] = 1;
         }
 
         return degrees;
@@ -64,11 +108,101 @@ public static class SetsAndMaps
     /// Reminder: You can access a letter by index in a string by 
     /// using the [] notation.
     /// </summary>
-    public static bool IsAnagram(string word1, string word2)
+   public static bool IsAnagram(string a, string b)
     {
-        // TODO Problem 3 - ADD YOUR CODE HERE
-        return false;
+        if (a == null || b == null) return false;
+
+        // Normalize: remove spaces and lower-case
+        var s1 = a.Replace(" ", "", StringComparison.Ordinal).ToLowerInvariant();
+        var s2 = b.Replace(" ", "", StringComparison.Ordinal).ToLowerInvariant();
+
+        if (s1.Length != s2.Length) return false;
+
+        var counts = new Dictionary<char,int>();
+
+        foreach (char c in s1)
+        {
+            counts[c] = counts.GetValueOrDefault(c) + 1;
+        }
+
+        foreach (char c in s2)
+        {
+            if (!counts.TryGetValue(c, out int cnt) || cnt == 0)
+                return false;
+            counts[c] = cnt - 1;
+        }
+
+        // all counts should be zero
+        foreach (var kv in counts)
+            if (kv.Value != 0) return false;
+
+        return true;
     }
+
+    // <summary>
+    // I’ll provide a clear Maze class shape and implementations for the four moves. I assume the maze is represented as a Dictionary<(int x, int y), Cell> where Cell tells which directions are allowed.
+    // </summary>
+
+    public class Cell
+    {
+        public bool Left { get; set; }
+        public bool Right { get; set; }
+        public bool Up { get; set; }
+        public bool Down { get; set; }
+    }
+
+    public class Maze
+    {
+        private readonly Dictionary<(int x,int y), Cell> _grid;
+        private (int x, int y) _position;
+
+        public Maze(Dictionary<(int,int), Cell> grid, (int x,int y) start)
+        {
+            _grid = grid ?? throw new ArgumentNullException(nameof(grid));
+            _position = start;
+        }
+
+        public (int x,int y) Position => _position;
+
+        public string GetStatus() => $"Current location (x={_position.x}, y={_position.y})";
+
+        public bool MoveLeft()
+        {
+            var next = (_position.x - 1, _position.y);
+            if (!_grid.ContainsKey(next) || _grid[_position].Left)
+                throw new InvalidOperationException("Can't go that way!");
+            _position = next;
+            return true;
+        }
+
+        public bool MoveRight()
+        {
+            var next = (_position.x + 1, _position.y);
+            if (!_grid.ContainsKey(next) || _grid[_position].Right)
+                throw new InvalidOperationException("Can't go that way!");
+            _position = next;
+            return true;
+        }
+
+        public bool MoveUp()
+        {
+            var next = (_position.x, _position.y - 1);
+            if (!_grid.ContainsKey(next) || _grid[_position].Up)
+                throw new InvalidOperationException("Can't go that way!");
+            _position = next;
+            return true;
+        }
+
+        public bool MoveDown()
+        {
+            var next = (_position.x, _position.y + 1);
+            if (!_grid.ContainsKey(next) || _grid[_position].Down)
+                throw new InvalidOperationException("Can't go that way!");
+            _position = next;
+            return true;
+        }
+    }
+
 
     /// <summary>
     /// This function will read JSON (Javascript Object Notation) data from the 
@@ -101,6 +235,40 @@ public static class SetsAndMaps
         // on those classes so that the call to Deserialize above works properly.
         // 2. Add code below to create a string out each place a earthquake has happened today and its magitude.
         // 3. Return an array of these string descriptions.
-        return [];
+        if (featureCollection?.Features == null)
+            return Array.Empty<string>();
+
+        var results = new List<string>();
+
+        foreach (var feature in featureCollection.Features)
+        {
+            var place = feature.Properties?.Place ?? "Unknown location";
+            var mag = feature.Properties?.Mag?.ToString("0.##") ?? "N/A";
+            results.Add($"{place} - Mag {mag}");
+        }
+
+        return results.ToArray();
     }
+
+    // Local classes for JSON deserialization
+        class FeatureCollection
+        {
+            [JsonPropertyName("features")]
+            public List<Feature> Features { get; set; } = new List<Feature>();
+        }
+
+        class Feature
+        {
+            [JsonPropertyName("properties")]
+            public Properties Properties { get; set; } = new Properties();
+        }
+
+        class Properties
+        {
+            [JsonPropertyName("place")]
+            public string? Place { get; set; }
+
+            [JsonPropertyName("mag")]
+            public double? Mag { get; set; }
+        }
 }
